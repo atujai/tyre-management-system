@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(STAFF)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  history History[]
+
+  @@map("users")
+}
+
+model Vehicle {
+  id           String  @id @default(cuid())
+  reg          String  @unique
+  type         String
+  model        String
+  stepneySlots Int     @default(1)
+
+  axles   Axle[]
+  tyres   Tyre[]
+  stepneys Tyre[] @relation("VehicleStepneys")
+  history History[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("vehicles")
+}
+
+model Axle {
+  id        String @id @default(cuid())
+  vehicleId String
+  tyreCount Int
+  steering  Boolean @default(false)
+  drive     Boolean @default(false)
+  line      Int?
+  sortOrder Int    @default(0)
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  tyres   Tyre[]
+
+  @@map("axles")
+}
+
+model Tyre {
+  id            String     @id @default(cuid())
+  serial        String     @unique
+  brand         String
+  size          String
+  pattern       String?
+  purchaseDate  DateTime?
+  initialTread  Float      @default(20)
+  currentTread  Float      @default(20)
+  status        TyreStatus @default(INVENTORY)
+  cost          Float?
+  remarks       String?
+  withRim       Boolean    @default(true)
+
+  // Mounting
+  vehicleId     String?
+  axleId        String?
+  position      String?
+  mountingDate  DateTime?
+
+  // Stepney
+  stepneyVehicleId String?
+  stepneyDate      DateTime?
+  stepneyType      StepneyType?
+
+  // Location
+  locationId String?
+
+  // Images
+  images TyreImage[]
+
+  vehicle   Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  axle      Axle?     @relation(fields: [axleId], references: [id], onDelete: SetNull)
+  location  Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  stepneyVehicle Vehicle? @relation("VehicleStepneys", fields: [stepneyVehicleId], references: [id], onDelete: SetNull)
+  history   History[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tyres")
+}
+
+model TyreImage {
+  id       String @id @default(cuid())
+  tyreId   String
+  url      String
+  type     ImageType @default(TYRE)
+  caption  String?
+
+  tyre Tyre @relation(fields: [tyreId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@map("tyre_images")
+}
+
+model Location {
+  id      String       @id @default(cuid())
+  name    String
+  type    LocationType
+  address String?
+  contact String?
+
+  tyres Tyre[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("locations")
+}
+
+model History {
+  id        String @id @default(cuid())
+  date      DateTime @default(now())
+  action    String
+  details   String?
+
+  tyreId    String
+  vehicleId String?
+  axleIndex Int?
+  position  String?
+
+  userId    String?
+
+  tyre    Tyre    @relation(fields: [tyreId], references: [id], onDelete: Cascade)
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@map("history")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum TyreStatus {
+  MOUNTED
+  INVENTORY
+  STEPNEY
+  WORN
+  DAMAGED
+  REPAIR
+  SCRAPPED
+}
+
+enum StepneyType {
+  READY
+  BURST
+  CLAIM
+  PUNCTURE
+  RETREAD_CHECKUP
+}
+
+enum LocationType {
+  GODOWN
+  RETREADER
+}
+
+enum ImageType {
+  TYRE
+  DOCUMENT
+  SERIAL_NUMBER
+}
