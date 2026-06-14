@@ -17,7 +17,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Truck, ChevronDown, ChevronUp, Zap, LogOut } from 'lucide-react'
+import { Truck, Zap, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -32,7 +32,7 @@ import api from '@/lib/api'
 import type { Vehicle, Tyre, Axle } from '@/types'
 
 // Sortable Tyre Item for Drag & Drop
-function SortableTyre({ tyre, isOverlay }: { tyre: Tyre; isOverlay?: boolean }) {
+function SortableTyre({ tyre, isOverlay, onClick }: { tyre: Tyre; isOverlay?: boolean; onClick?: () => void }) {
   const {
     attributes,
     listeners,
@@ -40,7 +40,7 @@ function SortableTyre({ tyre, isOverlay }: { tyre: Tyre; isOverlay?: boolean }) 
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: tyre.id, data: { tyre } })
+  } = useSortable({ id: tyre.id, data: { tyre, type: tyre.status === 'MOUNTED' ? 'mounted' : 'available' } })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -60,6 +60,7 @@ function SortableTyre({ tyre, isOverlay }: { tyre: Tyre; isOverlay?: boolean }) 
       style={style}
       {...attributes}
       {...listeners}
+      onClick={onClick}
       className={`
         relative w-14 h-14 rounded-full border-3 flex items-center justify-center cursor-grab
         font-bold text-[9px] select-none transition-all hover:scale-110 hover:z-10
@@ -98,7 +99,7 @@ function EmptySlot({
     <div
       onClick={onClick}
       className={`
-        w-14 h-14 rounded-full border-2 border-dashed flex items-center justify-center cursor-pointer
+        relative w-14 h-14 rounded-full border-2 border-dashed flex items-center justify-center cursor-pointer
         transition-all hover:border-primary hover:bg-primary/5
         ${isOver ? 'border-primary bg-primary/10 scale-110' : 'border-muted-foreground/30'}
       `}
@@ -138,6 +139,10 @@ export function AllotmentPage() {
   const [selectedSlot, setSelectedSlot] = useState<{ axleId: string; position: string } | null>(null)
   const [unmountModalOpen, setUnmountModalOpen] = useState(false)
   const [selectedMountedTyre, setSelectedMountedTyre] = useState<Tyre | null>(null)
+  const [stepneyReturnModalOpen, setStepneyReturnModalOpen] = useState(false)
+  const [selectedStepneyTyre, setSelectedStepneyTyre] = useState<Tyre | null>(null)
+  const [stepneyModalOpen, setStepneyModalOpen] = useState(false)
+  const [stepneyTargetVehicleId, setStepneyTargetVehicleId] = useState('')
 
   const queryClient = useQueryClient()
 
@@ -145,6 +150,14 @@ export function AllotmentPage() {
     queryKey: ['vehicles'],
     queryFn: async () => {
       const response = await api.get('/vehicles')
+      return response.data
+    },
+  })
+
+  const { data: locations } = useQuery<any[]>({
+    queryKey: ['locations'],
+    queryFn: async () => {
+      const response = await api.get('/locations')
       return response.data
     },
   })
@@ -190,7 +203,7 @@ export function AllotmentPage() {
   })
 
   const unmountMutation = useMutation({
-    mutationFn: (data: { tyreId: string; destination: string; locationId?: string }) =>
+    mutationFn: (data: { tyreId: string; destination: string; locationId?: string; targetVehicleId?: string; stepneyType?: string; withRim?: boolean }) =>
       api.post('/allotment/unmount', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicle-detail'] })
@@ -201,6 +214,49 @@ export function AllotmentPage() {
     },
     onError: (error: any) => {
       toast.error('Unmount failed', error.response?.data?.error)
+    },
+  })
+
+  const stepneyReturnMutation = useMutation({
+    mutationFn: (data: { tyreId: string; locationId?: string }) =>
+      api.post('/allotment/stepney/return', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vehicle-detail'] })
+      queryClient.invalidateQueries({ queryKey: ['available-tyres'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      setStepneyReturnModalOpen(false)
+      setSelectedStepneyTyre(null)
+      toast.success('Stepney returned to inventory')
+    },
+    onError: (error: any) => {
+      toast.error('Return failed', error.response?.data?.error)
+    },
+  })
+
+  const rotateMutation = useMutation({
+    mutationFn: (data: { tyreId1: string; tyreId2: string }) =>
+      api.post('/allotment/rotate', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vehicle-detail'] })
+      toast.success('Tyres rotated successfully')
+    },
+    onError: (error: any) => {
+      toast.error('Rotation failed', error.response?.data?.error)
+    },
+  })
+
+  const stepneyAssignMutation = useMutation({
+    mutationFn: (data: { tyreId: string; vehicleId: string; stepneyType: string; withRim: boolean }) =>
+      api.post('/allotment/stepney/assign', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vehicle-detail'] })
+      queryClient.invalidateQueries({ queryKey: ['available-tyres'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      setStepneyModalOpen(false)
+      toast.success('Stepney assigned successfully')
+    },
+    onError: (error: any) => {
+      toast.error('Stepney assignment failed', error.response?.data?.error)
     },
   })
 
@@ -249,11 +305,13 @@ export function AllotmentPage() {
     const { active, over } = event
     if (!over) return
 
-    const tyre = active.data.current?.tyre as Tyre
+    const draggedTyre = active.data.current?.tyre as Tyre
     const dropData = over.data.current as any
 
-    if (dropData?.type === 'slot' && tyre) {
-      // Check if slot is occupied
+    if (!draggedTyre) return
+
+    // Drag available tyre to empty slot -> mount
+    if (dropData?.type === 'slot' && draggedTyre.status !== 'MOUNTED') {
       const existingTyre = vehicleDetail?.axles
         .find((a) => a.id === dropData.axleId)
         ?.tyres.find((t) => t.position === dropData.position && t.status === 'MOUNTED')
@@ -264,7 +322,37 @@ export function AllotmentPage() {
       }
 
       mountMutation.mutate({
-        tyreId: tyre.id,
+        tyreId: draggedTyre.id,
+        vehicleId: selectedVehicleId,
+        axleId: dropData.axleId,
+        position: dropData.position,
+      })
+      return
+    }
+
+    // Drag mounted tyre to another mounted tyre -> rotate
+    if (draggedTyre.status === 'MOUNTED' && dropData?.tyre?.status === 'MOUNTED') {
+      if (draggedTyre.id === dropData.tyre.id) return
+      rotateMutation.mutate({
+        tyreId1: draggedTyre.id,
+        tyreId2: dropData.tyre.id,
+      })
+      return
+    }
+
+    // Drag mounted tyre to empty slot -> move/reposition
+    if (draggedTyre.status === 'MOUNTED' && dropData?.type === 'slot') {
+      const existingTyre = vehicleDetail?.axles
+        .find((a) => a.id === dropData.axleId)
+        ?.tyres.find((t) => t.position === dropData.position && t.status === 'MOUNTED')
+
+      if (existingTyre) {
+        toast.error('Slot already occupied')
+        return
+      }
+
+      mountMutation.mutate({
+        tyreId: draggedTyre.id,
         vehicleId: selectedVehicleId,
         axleId: dropData.axleId,
         position: dropData.position,
@@ -284,6 +372,11 @@ export function AllotmentPage() {
       setSelectedSlot({ axleId, position })
       setMountModalOpen(true)
     }
+  }
+
+  const handleStepneyClick = (tyre: Tyre) => {
+    setSelectedStepneyTyre(tyre)
+    setStepneyReturnModalOpen(true)
   }
 
   const selectedVehicle = vehicles?.find((v) => v.id === selectedVehicleId)
@@ -335,7 +428,7 @@ export function AllotmentPage() {
                     {selectedVehicle?.type} — {selectedVehicle?.model}
                   </span>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <Badge variant="mounted">
                     {vehicleDetail?.tyres?.filter((t) => t.status === 'MOUNTED').length || 0}/
                     {vehicleDetail?.axles?.reduce((sum, a) => sum + a.tyreCount, 0) || 0} Mounted
@@ -428,10 +521,7 @@ export function AllotmentPage() {
                     <div
                       key={tyre.id}
                       className="flex items-center gap-3 bg-secondary/50 rounded-lg p-3 cursor-pointer hover:bg-secondary transition-colors"
-                      onClick={() => {
-                        setSelectedMountedTyre(tyre)
-                        setUnmountModalOpen(true)
-                      }}
+                      onClick={() => handleStepneyClick(tyre)}
                     >
                       <div className="w-8 h-8 rounded-full border-2 border-purple-400 bg-purple-400/15 flex items-center justify-center">
                         <span className="text-[8px] text-purple-400 font-bold">
@@ -455,7 +545,11 @@ export function AllotmentPage() {
                   }).map((_, i) => (
                     <div
                       key={`empty-${i}`}
-                      className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-3 text-center text-muted-foreground text-xs cursor-pointer hover:border-primary hover:text-primary transition-colors"
+                      className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-3 text-center text-muted-foreground text-xs cursor-pointer hover:border-primary hover:text-primary transition-colors min-w-[100px]"
+                      onClick={() => {
+                        setStepneyTargetVehicleId(selectedVehicleId)
+                        setStepneyModalOpen(true)
+                      }}
                     >
                       + Assign Stepney
                     </div>
@@ -516,7 +610,7 @@ export function AllotmentPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Unmount Modal */}
+      {/* Unmount Modal — for MOUNTED tyres only */}
       <Dialog open={unmountModalOpen} onOpenChange={setUnmountModalOpen}>
         <DialogContent>
           <DialogHeader>
@@ -533,6 +627,39 @@ export function AllotmentPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Stepney Return Modal — for STEPNEY tyres only */}
+      <Dialog open={stepneyReturnModalOpen} onOpenChange={setStepneyReturnModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Return Stepney to Inventory</DialogTitle>
+          </DialogHeader>
+          {selectedStepneyTyre && (
+            <StepneyReturnForm
+              tyre={selectedStepneyTyre}
+              locations={locations || []}
+              onSubmit={(data) => stepneyReturnMutation.mutate(data)}
+              onCancel={() => setStepneyReturnModalOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Stepney Assignment Modal */}
+      <Dialog open={stepneyModalOpen} onOpenChange={setStepneyModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Stepney</DialogTitle>
+          </DialogHeader>
+          <StepneyAssignForm
+            availableTyres={availableTyres || []}
+            targetVehicleId={stepneyTargetVehicleId}
+            vehicles={vehicles || []}
+            onSubmit={(data) => stepneyAssignMutation.mutate(data)}
+            onCancel={() => setStepneyModalOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 
@@ -544,6 +671,10 @@ export function AllotmentPage() {
         ? 'Drive'
         : ''
 
+    // WORKAROUND: Filter out non-mounted tyres from axle data
+    // because backend vehicles.ts does not filter axle.tyres by status
+    const mountedTyres = axle.tyres.filter((t) => t.status === 'MOUNTED')
+
     return (
       <div key={axle.id} className="flex items-center justify-center gap-2 relative py-2">
         <span className="absolute left-0 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold w-20">
@@ -554,12 +685,24 @@ export function AllotmentPage() {
         {/* Left side */}
         <div className="flex gap-2 ml-20">
           {sides.left.map((pos) => {
-            const tyre = axle.tyres.find(
-              (t) => t.position === pos && t.status === 'MOUNTED'
+            const tyre = mountedTyres.find(
+              (t) => t.position === pos
             )
             return tyre ? (
               <div key={pos} className="relative">
-                <SortableTyre tyre={tyre} />
+                <SortableTyre 
+                  tyre={tyre} 
+                  onClick={() => {
+                    // Safety check: only open unmount modal if tyre is actually mounted
+                    if (tyre.status === 'MOUNTED') {
+                      setSelectedMountedTyre(tyre)
+                      setUnmountModalOpen(true)
+                    } else {
+                      toast.error('This tyre is no longer mounted')
+                      queryClient.invalidateQueries({ queryKey: ['vehicle-detail'] })
+                    }
+                  }}
+                />
                 <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground font-semibold">
                   {pos}
                 </span>
@@ -584,12 +727,24 @@ export function AllotmentPage() {
         {/* Right side */}
         <div className="flex gap-2">
           {sides.right.map((pos) => {
-            const tyre = axle.tyres.find(
-              (t) => t.position === pos && t.status === 'MOUNTED'
+            const tyre = mountedTyres.find(
+              (t) => t.position === pos
             )
             return tyre ? (
               <div key={pos} className="relative">
-                <SortableTyre tyre={tyre} />
+                <SortableTyre 
+                  tyre={tyre} 
+                  onClick={() => {
+                    // Safety check: only open unmount modal if tyre is actually mounted
+                    if (tyre.status === 'MOUNTED') {
+                      setSelectedMountedTyre(tyre)
+                      setUnmountModalOpen(true)
+                    } else {
+                      toast.error('This tyre is no longer mounted')
+                      queryClient.invalidateQueries({ queryKey: ['vehicle-detail'] })
+                    }
+                  }}
+                />
                 <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground font-semibold">
                   {pos}
                 </span>
@@ -610,7 +765,7 @@ export function AllotmentPage() {
   }
 }
 
-// Unmount Form Component
+// Unmount Form Component — for MOUNTED tyres only
 function UnmountForm({
   tyre,
   locations,
@@ -632,18 +787,39 @@ function UnmountForm({
 
   const godowns = locations.filter((l) => l.type === 'GODOWN')
   const retreaders = locations.filter((l) => l.type === 'RETREADER')
-  const otherVehicles = vehicles.filter((v) => v.id !== tyre.vehicleId)
+  const otherVehicles = vehicles.filter((v) => v.id !== tyre.vehicleId && v.id !== tyre.stepneyVehicleId)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit({
+
+    if ((destination === 'godown' || destination === 'retreader') && !locationId) {
+      toast.error('Please select a location')
+      return
+    }
+    if (destination === 'stepney-other' && !targetVehicleId) {
+      toast.error('Please select a target vehicle')
+      return
+    }
+
+    const payload: any = {
       tyreId: tyre.id,
       destination,
-      locationId: destination === 'godown' || destination === 'retreader' ? locationId : undefined,
-      targetVehicleId: destination === 'stepney-other' ? targetVehicleId : undefined,
-      stepneyType,
-      withRim,
-    })
+    }
+
+    if (destination === 'godown' || destination === 'retreader') {
+      payload.locationId = locationId
+    }
+
+    if (destination === 'stepney-other') {
+      payload.targetVehicleId = targetVehicleId
+    }
+
+    if (destination === 'stepney-same' || destination === 'stepney-other') {
+      payload.stepneyType = stepneyType
+      payload.withRim = withRim
+    }
+
+    onSubmit(payload)
   }
 
   return (
@@ -652,6 +828,7 @@ function UnmountForm({
         <p><span className="text-muted-foreground">Serial:</span> <strong>{tyre.serial}</strong></p>
         <p><span className="text-muted-foreground">Brand:</span> {tyre.brand}</p>
         <p><span className="text-muted-foreground">Tread:</span> {tyre.currentTread}mm</p>
+        <p><span className="text-muted-foreground">Status:</span> <Badge variant="mounted">MOUNTED</Badge></p>
       </div>
 
       <div className="space-y-2">
@@ -733,7 +910,6 @@ function UnmountForm({
         </div>
       </div>
 
-      {/* Conditional fields */}
       {(destination === 'godown') && (
         <div>
           <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">
@@ -743,7 +919,7 @@ function UnmountForm({
             value={locationId}
             onChange={(e) => setLocationId(e.target.value)}
             className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm"
-            required
+            required={destination === 'godown'}
           >
             <option value="">Select godown...</option>
             {godowns.map((g) => (
@@ -762,7 +938,7 @@ function UnmountForm({
             value={locationId}
             onChange={(e) => setLocationId(e.target.value)}
             className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm"
-            required
+            required={destination === 'retreader'}
           >
             <option value="">Select retreader...</option>
             {retreaders.map((r) => (
@@ -781,7 +957,7 @@ function UnmountForm({
             value={targetVehicleId}
             onChange={(e) => setTargetVehicleId(e.target.value)}
             className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm"
-            required
+            required={destination === 'stepney-other'}
           >
             <option value="">Select vehicle...</option>
             {otherVehicles.map((v) => (
@@ -833,6 +1009,206 @@ function UnmountForm({
           Cancel
         </Button>
         <Button type="submit">Confirm Unmount</Button>
+      </div>
+    </form>
+  )
+}
+
+// Stepney Return Form — for STEPNEY tyres only
+function StepneyReturnForm({
+  tyre,
+  locations,
+  onSubmit,
+  onCancel,
+}: {
+  tyre: Tyre
+  locations: any[]
+  onSubmit: (data: { tyreId: string; locationId?: string }) => void
+  onCancel: () => void
+}) {
+  const [locationId, setLocationId] = useState('')
+
+  const godowns = locations.filter((l) => l.type === 'GODOWN')
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+
+    const payload: { tyreId: string; locationId?: string } = {
+      tyreId: tyre.id,
+    }
+
+    if (locationId) {
+      payload.locationId = locationId
+    }
+
+    onSubmit(payload)
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="bg-secondary/30 rounded-lg p-3 text-sm space-y-1">
+        <p><span className="text-muted-foreground">Serial:</span> <strong>{tyre.serial}</strong></p>
+        <p><span className="text-muted-foreground">Brand:</span> {tyre.brand}</p>
+        <p><span className="text-muted-foreground">Tread:</span> {tyre.currentTread}mm</p>
+        <p><span className="text-muted-foreground">Type:</span> <Badge variant={tyre.stepneyType?.toLowerCase() as any || 'ready'}>{tyre.stepneyType || 'READY'}</Badge></p>
+        <p><span className="text-muted-foreground">With Rim:</span> {tyre.withRim ? 'Yes' : 'No'}</p>
+      </div>
+
+      <div>
+        <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">
+          Return to Godown (optional — defaults to first available)
+        </label>
+        <select
+          value={locationId}
+          onChange={(e) => setLocationId(e.target.value)}
+          className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm"
+        >
+          <option value="">Auto-select godown</option>
+          {godowns.map((g) => (
+            <option key={g.id} value={g.id}>{g.name}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit">Return to Inventory</Button>
+      </div>
+    </form>
+  )
+}
+
+// Stepney Assignment Form
+function StepneyAssignForm({
+  availableTyres,
+  targetVehicleId,
+  vehicles,
+  onSubmit,
+  onCancel,
+}: {
+  availableTyres: Tyre[]
+  targetVehicleId: string
+  vehicles: Vehicle[]
+  onSubmit: (data: { tyreId: string; vehicleId: string; stepneyType: string; withRim: boolean }) => void
+  onCancel: () => void
+}) {
+  const [selectedTyreId, setSelectedTyreId] = useState('')
+  const [vehicleId, setVehicleId] = useState(targetVehicleId)
+  const [stepneyType, setStepneyType] = useState('READY')
+  const [withRim, setWithRim] = useState(true)
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedTyreId || !vehicleId) return
+    onSubmit({
+      tyreId: selectedTyreId,
+      vehicleId,
+      stepneyType,
+      withRim,
+    })
+  }
+
+  const eligibleTyres = availableTyres.filter(
+    (t) => t.status === 'INVENTORY' || t.status === 'REPAIR'
+  )
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="text-xs font-semibold text-muted-foreground uppercase block mb-2">
+          Select Tyre
+        </label>
+        <div className="max-h-[200px] overflow-y-auto space-y-2 border border-border rounded-lg p-2">
+          {eligibleTyres.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No available tyres in inventory or repair
+            </p>
+          )}
+          {eligibleTyres.map((tyre) => (
+            <div
+              key={tyre.id}
+              onClick={() => setSelectedTyreId(tyre.id)}
+              className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${
+                selectedTyreId === tyre.id
+                  ? 'bg-primary/10 border border-primary'
+                  : 'hover:bg-secondary/50 border border-transparent'
+              }`}
+            >
+              <div className="w-8 h-8 rounded-full border-2 border-emerald-500 bg-emerald-500/15 flex items-center justify-center text-emerald-400 text-[7px] font-bold">
+                {tyre.serial.split('-').pop()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{tyre.serial}</p>
+                <p className="text-xs text-muted-foreground">
+                  {tyre.brand} — {tyre.size} — {tyre.currentTread}mm
+                </p>
+              </div>
+              <Badge variant={tyre.status.toLowerCase() as any}>{tyre.status}</Badge>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">
+          Assign to Vehicle
+        </label>
+        <select
+          value={vehicleId}
+          onChange={(e) => setVehicleId(e.target.value)}
+          className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm"
+          required
+        >
+          <option value="">Select vehicle...</option>
+          {vehicles.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.reg} ({v.type}) — {v.stepneyCount}/{v.stepneySlots} stepneys
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="text-xs font-semibold text-muted-foreground uppercase block mb-2">
+          Stepney Type
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {['READY', 'BURST', 'CLAIM', 'PUNCTURE', 'RETREAD_CHECKUP'].map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setStepneyType(type)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                stepneyType === type
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border hover:border-muted-foreground'
+              }`}
+            >
+              {type.replace('_', ' ')}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={withRim}
+          onChange={(e) => setWithRim(e.target.checked)}
+          className="rounded"
+        />
+        <span className="text-sm">With Rim</span>
+      </label>
+
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={!selectedTyreId || !vehicleId}>
+          Assign Stepney
+        </Button>
       </div>
     </form>
   )

@@ -23,6 +23,8 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
 // Routes
 import authRoutes from './routes/auth.js'
 import vehicleRoutes from './routes/vehicles.js'
+import makeRoutes from './routes/makes.js'
+import vehicleTypeRoutes from './routes/vehicle-types.js'
 import locationRoutes from './routes/locations.js'
 import tyreRoutes from './routes/tyres.js'
 import allotmentRoutes from './routes/allotment.js'
@@ -31,6 +33,8 @@ import dashboardRoutes from './routes/dashboard.js'
 
 app.use('/api/auth', authRoutes)
 app.use('/api/vehicles', vehicleRoutes)
+app.use('/api/makes', makeRoutes)
+app.use('/api/vehicle-types', vehicleTypeRoutes)
 app.use('/api/locations', locationRoutes)
 app.use('/api/tyres', tyreRoutes)
 app.use('/api/allotment', allotmentRoutes)

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Truck, Eye, EyeOff } from 'lucide-react'
+import { Truck, Eye, EyeOff, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuthStore } from '@/stores/auth'
@@ -8,7 +8,7 @@ import api from '@/lib/api'
 import { toast } from '@/components/ui/toast'
 
 export function LoginPage() {
-  const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -17,14 +17,14 @@ export function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email || !password) {
+    if (!name || !password) {
       toast.error('Please fill in all fields')
       return
     }
 
     setLoading(true)
     try {
-      const response = await api.post('/auth/login', { email, password })
+      const response = await api.post('/auth/login', { name, password })
       const { token, user } = response.data
       setAuth(user, token)
       toast.success('Welcome back!', `Logged in as ${user.name}`)
@@ -57,15 +57,19 @@ export function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">
-              Email
+              Full Name
             </label>
-            <Input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="staff@tyremanager.com"
-              className="h-12"
-            />
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter your full name"
+                className="h-12 pl-10"
+                required
+              />
+            </div>
           </div>
 
           <div>
@@ -79,6 +83,7 @@ export function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter password"
                 className="h-12 pr-12"
+                required
               />
               <button
                 type="button"
@@ -105,8 +110,8 @@ export function LoginPage() {
 
         <div className="mt-6 text-center text-sm text-muted-foreground">
           <p>Demo credentials:</p>
-          <p>Admin: admin@tyremanager.com / admin123</p>
-          <p>Staff: staff@tyremanager.com / staff123</p>
+          <p>Admin: Admin User / admin123</p>
+          <p>Staff: Staff User / staff123</p>
         </div>
       </div>
     </div>

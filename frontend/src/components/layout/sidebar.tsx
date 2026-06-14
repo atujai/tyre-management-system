@@ -10,29 +10,44 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
+  RotateCcw,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
+import type { Permissions } from '@/stores/auth'
 
-const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/vehicles', label: 'Vehicles', icon: Truck },
-  { path: '/locations', label: 'Locations', icon: Warehouse },
-  { path: '/tyres', label: 'Tyre Bank', icon: CircleDot },
-  { path: '/allotment', label: 'Allotment', icon: Network },
-  { path: '/stepney', label: 'Stepney', icon: CircleDot },
-  { path: '/history', label: 'History', icon: History },
-]
+interface NavItem {
+  path: string
+  label: string
+  icon: React.ElementType
+  permissionKey: keyof Permissions
+}
 
-const adminNavItems = [
-  { path: '/users', label: 'Staff', icon: Users },
+const allNavItems: NavItem[] = [
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permissionKey: 'dashboard' },
+  { path: '/vehicles', label: 'Vehicles', icon: Truck, permissionKey: 'vehicles' },
+  { path: '/locations', label: 'Locations', icon: Warehouse, permissionKey: 'locations' },
+  { path: '/tyres', label: 'Tyre Bank', icon: CircleDot, permissionKey: 'tyres' },
+  { path: '/allotment', label: 'Allotment', icon: Network, permissionKey: 'allotment' },
+  { path: '/stepney', label: 'Stepney', icon: RotateCcw, permissionKey: 'stepney' },
+  { path: '/history', label: 'History', icon: History, permissionKey: 'history' },
+  { path: '/users', label: 'Staff', icon: Users, permissionKey: 'users' },
 ]
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
-  const { user } = useAuthStore()
+  const { user, hasPermission } = useAuthStore()
   const location = useLocation()
   const isAdmin = user?.role === 'ADMIN'
+
+  // Filter nav items based on permissions
+  const visibleNavItems = allNavItems.filter((item) =>
+    isAdmin ? true : hasPermission(item.permissionKey)
+  )
+
+  // Separate admin items (Users) from regular items for visual grouping
+  const regularItems = visibleNavItems.filter((item) => item.permissionKey !== 'users')
+  const adminItems = visibleNavItems.filter((item) => item.permissionKey === 'users')
 
   return (
     <aside
@@ -53,7 +68,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 py-4 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
+        {regularItems.map((item) => {
           const Icon = item.icon
           const isActive = location.pathname === item.path
           return (
@@ -73,7 +88,7 @@ export function Sidebar() {
           )
         })}
 
-        {isAdmin && (
+        {adminItems.length > 0 && (
           <>
             <div className="mx-4 my-3 border-t border-border" />
             {!collapsed && (
@@ -81,7 +96,7 @@ export function Sidebar() {
                 Admin
               </p>
             )}
-            {adminNavItems.map((item) => {
+            {adminItems.map((item) => {
               const Icon = item.icon
               const isActive = location.pathname === item.path
               return (

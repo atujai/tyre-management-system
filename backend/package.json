@@ -2,6 +2,9 @@
   "name": "tyre-management-backend",
   "version": "1.0.0",
   "type": "module",
+  "prisma": {
+    "seed": "tsx src/seed.ts"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",

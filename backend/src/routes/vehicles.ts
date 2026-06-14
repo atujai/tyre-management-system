@@ -9,12 +9,13 @@ const axleSchema = z.object({
   tyreCount: z.number().min(1).max(8),
   steering: z.boolean().default(false),
   drive: z.boolean().default(false),
-  line: z.number().optional(),
+  line: z.number().nullable().optional(),
 })
 
 const vehicleSchema = z.object({
   reg: z.string().min(1),
   type: z.string().min(1),
+  make: z.string().min(1).optional(),
   model: z.string().min(1),
   stepneySlots: z.number().min(0).max(10).default(1),
   axles: z.array(axleSchema).min(1),
@@ -24,6 +25,8 @@ const vehicleSchema = z.object({
 router.get('/', authenticate, async (req, res) => {
   const vehicles = await prisma.vehicle.findMany({
     include: {
+      make: true,
+      vehicleType: true,
       axles: {
         orderBy: { sortOrder: 'asc' },
       },
@@ -43,6 +46,8 @@ router.get('/', authenticate, async (req, res) => {
 
   const formatted = vehicles.map(v => ({
     ...v,
+    type: v.vehicleType?.name || v.type,
+    make: v.make?.name || null,
     totalTyres: v.axles.reduce((sum, a) => sum + a.tyreCount, 0),
     mountedCount: v._count.tyres,
     stepneyCount: v._count.stepneys,
@@ -56,10 +61,13 @@ router.get('/:id', authenticate, async (req, res) => {
   const vehicle = await prisma.vehicle.findUnique({
     where: { id: req.params.id },
     include: {
+      make: true,
+      vehicleType: true,
       axles: {
         orderBy: { sortOrder: 'asc' },
         include: {
           tyres: {
+            where: { status: 'MOUNTED' },
             include: {
               images: true,
             },
@@ -85,7 +93,11 @@ router.get('/:id', authenticate, async (req, res) => {
     return res.status(404).json({ error: 'Vehicle not found' })
   }
 
-  res.json(vehicle)
+  res.json({
+    ...vehicle,
+    type: vehicle.vehicleType?.name || vehicle.type,
+    make: vehicle.make?.name || null,
+  })
 })
 
 // Create vehicle
@@ -93,11 +105,17 @@ router.post('/', authenticate, async (req, res) => {
   try {
     const data = vehicleSchema.parse(req.body)
 
+    // Resolve make and type by name to get IDs
+    const makeRecord = data.make ? await prisma.make.findFirst({ where: { name: data.make } }) : null
+    const typeRecord = await prisma.vehicleType.findFirst({ where: { name: data.type } })
+
     const vehicle = await prisma.vehicle.create({
       data: {
         reg: data.reg,
         type: data.type,
         model: data.model,
+        makeId: makeRecord?.id || null,
+        typeId: typeRecord?.id || null,
         stepneySlots: data.stepneySlots,
         axles: {
           create: data.axles.map((a, i) => ({
@@ -110,18 +128,24 @@ router.post('/', authenticate, async (req, res) => {
         },
       },
       include: {
+        make: true,
+        vehicleType: true,
         axles: {
           orderBy: { sortOrder: 'asc' },
         },
       },
     })
 
-    res.status(201).json(vehicle)
+    res.status(201).json({
+      ...vehicle,
+      type: vehicle.vehicleType?.name || vehicle.type,
+      make: vehicle.make?.name || null,
+    })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors })
     }
-    if (error.code === 'P2002') {
+    if ((error as any).code === 'P2002') {
       return res.status(400).json({ error: 'Registration number already exists' })
     }
     res.status(500).json({ error: 'Failed to create vehicle' })
@@ -132,6 +156,10 @@ router.post('/', authenticate, async (req, res) => {
 router.put('/:id', authenticate, async (req, res) => {
   try {
     const data = vehicleSchema.parse(req.body)
+
+    // Resolve make and type by name to get IDs
+    const makeRecord = data.make ? await prisma.make.findFirst({ where: { name: data.make } }) : null
+    const typeRecord = await prisma.vehicleType.findFirst({ where: { name: data.type } })
 
     // Delete existing axles and recreate
     await prisma.axle.deleteMany({
@@ -144,6 +172,8 @@ router.put('/:id', authenticate, async (req, res) => {
         reg: data.reg,
         type: data.type,
         model: data.model,
+        makeId: makeRecord?.id || null,
+        typeId: typeRecord?.id || null,
         stepneySlots: data.stepneySlots,
         axles: {
           create: data.axles.map((a, i) => ({
@@ -156,18 +186,24 @@ router.put('/:id', authenticate, async (req, res) => {
         },
       },
       include: {
+        make: true,
+        vehicleType: true,
         axles: {
           orderBy: { sortOrder: 'asc' },
         },
       },
     })
 
-    res.json(vehicle)
+    res.json({
+      ...vehicle,
+      type: vehicle.vehicleType?.name || vehicle.type,
+      make: vehicle.make?.name || null,
+    })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors })
     }
-    if (error.code === 'P2002') {
+    if ((error as any).code === 'P2002') {
       return res.status(400).json({ error: 'Registration number already exists' })
     }
     res.status(500).json({ error: 'Failed to update vehicle' })

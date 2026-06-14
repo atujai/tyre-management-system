@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, Search, Camera, ImageIcon } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog'
 import { ImageUpload } from '@/components/ui/image-upload'
 import { toast } from '@/components/ui/toast'
@@ -20,6 +21,25 @@ import type { Tyre, Location } from '@/types'
 const BRANDS = ['Michelin', 'Bridgestone', 'CEAT', 'MRF', 'Apollo', 'Goodyear', 'JK', 'Other']
 const SIZES = ['295/80R22.5', '315/80R22.5', '11.00R20', '12.00R20', '10.00R20', '9.00R20', '7.50R16', 'Other']
 const STATUSES = ['MOUNTED', 'INVENTORY', 'STEPNEY', 'WORN', 'DAMAGED', 'REPAIR', 'SCRAPPED'] as const
+
+function getErrorMessage(error: any): string {
+  if (error?.response?.data?.error?.message) {
+    return error.response.data.error.message
+  }
+  if (typeof error?.response?.data?.error === 'string') {
+    return error.response.data.error
+  }
+  if (Array.isArray(error?.response?.data?.error)) {
+    return error.response.data.error.map((e: any) => e.message || JSON.stringify(e)).join(', ')
+  }
+  if (error?.response?.data?.message) {
+    return error.response.data.message
+  }
+  if (error?.message) {
+    return error.message
+  }
+  return 'An error occurred'
+}
 
 export function TyresPage() {
   const [filter, setFilter] = useState('all')
@@ -65,10 +85,8 @@ export function TyresPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: async (data: FormData) => {
-      const response = await api.post('/tyres', data, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+    mutationFn: async (data: any) => {
+      const response = await api.post('/tyres', data)
       return response.data
     },
     onSuccess: () => {
@@ -78,15 +96,13 @@ export function TyresPage() {
       toast.success('Tyre added successfully')
     },
     onError: (error: any) => {
-      toast.error('Failed to add tyre', error.response?.data?.error)
+      toast.error(getErrorMessage(error))
     },
   })
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: FormData }) => {
-      const response = await api.put(`/tyres/${id}`, data, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await api.put(`/tyres/${id}`, data)
       return response.data
     },
     onSuccess: () => {
@@ -97,7 +113,7 @@ export function TyresPage() {
       toast.success('Tyre updated')
     },
     onError: (error: any) => {
-      toast.error('Failed to update tyre', error.response?.data?.error)
+      toast.error(getErrorMessage(error))
     },
   })
 
@@ -108,7 +124,7 @@ export function TyresPage() {
       toast.success('Tyre removed')
     },
     onError: (error: any) => {
-      toast.error('Failed to remove tyre', error.response?.data?.error)
+      toast.error(getErrorMessage(error))
     },
   })
 
@@ -151,24 +167,33 @@ export function TyresPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    const formDataObj = new FormData()
-    Object.entries(formData).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        formDataObj.append(key, value.toString())
-      }
-    })
+    // Build JSON payload with proper types
+    const payload: any = {
+      serial: formData.serial,
+      brand: formData.brand,
+      size: formData.size,
+      status: formData.status,
+      initialTread: Number(formData.initialTread),
+      currentTread: Number(formData.currentTread),
+      withRim: true,
+    }
 
-    // Add captured images as base64
-    capturedImages.forEach((img, index) => {
-      if (img.startsWith('data:')) {
-        formDataObj.append(`image_${index}`, img)
-      }
-    })
+    if (formData.pattern) payload.pattern = formData.pattern
+    if (formData.purchaseDate) payload.purchaseDate = formData.purchaseDate
+    if (formData.cost) payload.cost = Number(formData.cost)
+    if (formData.remarks) payload.remarks = formData.remarks
+    if (formData.locationId) payload.locationId = formData.locationId
+
+    // Include new base64 images
+    const newImages = capturedImages.filter(img => img.startsWith('data:'))
+    if (newImages.length > 0) {
+      payload.images = newImages
+    }
 
     if (editingTyre) {
-      updateMutation.mutate({ id: editingTyre.id, data: formDataObj })
+      updateMutation.mutate({ id: editingTyre.id, data: payload })
     } else {
-      createMutation.mutate(formDataObj)
+      createMutation.mutate(payload)
     }
   }
 
@@ -367,6 +392,9 @@ export function TyresPage() {
             <DialogTitle>
               {editingTyre ? 'Edit Tyre' : 'Add Tyre'}
             </DialogTitle>
+            <DialogDescription>
+              {editingTyre ? 'Update tyre details and photos.' : 'Enter new tyre details and upload photos.'}
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
