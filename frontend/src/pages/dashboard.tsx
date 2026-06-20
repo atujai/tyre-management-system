@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { ChallanAlertWidget } from '@/components/dashboard/ChallanAlertWidget'
 import api from '@/lib/api'
 import type { DashboardStats } from '@/types'
 
@@ -82,6 +83,9 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Challan Alert Widget - ADDED */}
+      <ChallanAlertWidget />
+
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {statConfig.map((stat) => {

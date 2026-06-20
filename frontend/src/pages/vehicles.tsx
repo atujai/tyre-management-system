@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { toast } from '@/components/ui/toast'
+import { toast } from '@/components/ui/use-toast'
 import api from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { Vehicle } from '@/types'

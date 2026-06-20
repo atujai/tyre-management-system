@@ -11,6 +11,11 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
+  ShieldAlert,
+  FileText,
+  MapPin,
+  Fuel,
+  Video,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
@@ -30,6 +35,11 @@ const allNavItems: NavItem[] = [
   { path: '/tyres', label: 'Tyre Bank', icon: CircleDot, permissionKey: 'tyres' },
   { path: '/allotment', label: 'Allotment', icon: Network, permissionKey: 'allotment' },
   { path: '/stepney', label: 'Stepney', icon: RotateCcw, permissionKey: 'stepney' },
+  { path: '/challans', label: 'Challans', icon: ShieldAlert, permissionKey: 'vehicles' },
+  { path: '/documents', label: 'Documents', icon: FileText, permissionKey: 'vehicles' },
+  { path: '/gps', label: 'GPS Tracking', icon: MapPin, permissionKey: 'dashboard' },
+  { path: '/fuel', label: 'Fuel Monitor', icon: Fuel, permissionKey: 'dashboard' },
+  { path: '/dashcam', label: 'Dashcams', icon: Video, permissionKey: 'dashboard' },
   { path: '/history', label: 'History', icon: History, permissionKey: 'history' },
   { path: '/users', label: 'Staff', icon: Users, permissionKey: 'users' },
 ]
@@ -40,12 +50,10 @@ export function Sidebar() {
   const location = useLocation()
   const isAdmin = user?.role === 'ADMIN'
 
-  // Filter nav items based on permissions
   const visibleNavItems = allNavItems.filter((item) =>
     isAdmin ? true : hasPermission(item.permissionKey)
   )
 
-  // Separate admin items (Users) from regular items for visual grouping
   const regularItems = visibleNavItems.filter((item) => item.permissionKey !== 'users')
   const adminItems = visibleNavItems.filter((item) => item.permissionKey === 'users')
 
@@ -70,7 +78,7 @@ export function Sidebar() {
       <nav className="flex-1 py-4 space-y-1 overflow-y-auto">
         {regularItems.map((item) => {
           const Icon = item.icon
-          const isActive = location.pathname === item.path
+          const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/')
           return (
             <NavLink
               key={item.path}

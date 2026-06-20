@@ -14,7 +14,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { ImageUpload } from '@/components/ui/image-upload'
-import { toast } from '@/components/ui/toast'
+import { toast } from '@/components/ui/use-toast'
 import api from '@/lib/api'
 import type { Tyre, Location } from '@/types'
 

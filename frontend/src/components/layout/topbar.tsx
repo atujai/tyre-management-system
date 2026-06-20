@@ -2,7 +2,7 @@ import { useLocation } from 'react-router-dom'
 import { LogOut, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/stores/auth'
-import { toast } from '@/components/ui/toast'
+import { toast } from '@/components/ui/use-toast'
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',

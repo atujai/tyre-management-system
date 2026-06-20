@@ -30,6 +30,7 @@ import tyreRoutes from './routes/tyres.js'
 import allotmentRoutes from './routes/allotment.js'
 import historyRoutes from './routes/history.js'
 import dashboardRoutes from './routes/dashboard.js'
+import challanRoutes from '../routes/challans.js'  // FIXED: was ./routes/challans.js
 
 app.use('/api/auth', authRoutes)
 app.use('/api/vehicles', vehicleRoutes)
@@ -40,6 +41,10 @@ app.use('/api/tyres', tyreRoutes)
 app.use('/api/allotment', allotmentRoutes)
 app.use('/api/history', historyRoutes)
 app.use('/api/dashboard', dashboardRoutes)
+app.use('/api/challans', challanRoutes)
+
+// Import cron jobs (they auto-start if enabled)
+import '../jobs/challanCron.js'  // FIXED: was ./jobs/challanCron.js
 
 // Health check
 app.get('/health', (req, res) => {

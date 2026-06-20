@@ -16,7 +16,7 @@ model User {
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  permissions Json?     @default("{\"tyres\": true, \"users\": false, \"history\": true, \"stepney\": true, \"vehicles\": true, \"allotment\": true, \"dashboard\": true, \"locations\": true}")
+  permissions Json?     @default("{\"tyres\": true, \"users\": false, \"history\": true, \"stepney\": true, \"vehicles\": true, \"allotment\": true, \"dashboard\": true, \"locations\": true, \"documents\": true}")
   history     History[]
 
   @@map("users")
@@ -56,6 +56,8 @@ model Vehicle {
   tyres        Tyre[]
   make         Make?        @relation(fields: [makeId], references: [id])
   vehicleType  VehicleType? @relation(fields: [typeId], references: [id])
+  challans     Challan[]
+  documents    VehicleDocument[]
 
   @@map("vehicles")
 }
@@ -150,6 +152,95 @@ model History {
   @@map("history")
 }
 
+model Challan {
+  id                String          @id @default(cuid())
+  vehicleId         String
+  challanNumber     String          @unique
+  challanDate       DateTime
+  offence           String
+  section           String?
+  fineAmount        Float
+  penaltyAmount     Float?
+  totalAmount       Float
+  status            ChallanStatus   @default(PENDING)
+  paymentDate       DateTime?
+  paymentReceipt    String?
+  paymentMethod     PaymentMethod?
+  paymentGatewayRef String?
+  location          String?
+  evidenceUrl       String?
+  source            ChallanSource   @default(MANUAL)
+  checkedAt         DateTime        @default(now())
+  notes             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  vehicle   Vehicle          @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  payments  ChallanPayment[]
+
+  @@map("challans")
+}
+
+model ChallanPayment {
+  id            String        @id @default(cuid())
+  challanId     String
+  amount        Float
+  method        PaymentMethod
+  gatewayRef    String?
+  status        PaymentStatus @default(PENDING)
+  initiatedAt   DateTime      @default(now())
+  completedAt   DateTime?
+  failureReason String?
+  receiptUrl    String?
+
+  challan Challan @relation(fields: [challanId], references: [id], onDelete: Cascade)
+
+  @@map("challan_payments")
+}
+
+// ============================================
+// VEHICLE DOCUMENTS (Enhanced with Reminders)
+// ============================================
+model VehicleDocument {
+  id          String         @id @default(cuid())
+  vehicleId   String
+  type        DocumentType
+  number      String?
+  issuer      String?
+  issueDate   DateTime?
+  expiryDate  DateTime?
+  amount      Float?
+  status      DocumentStatus @default(ACTIVE)
+  fileUrl     String?
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  vehicle     Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  reminders   DocumentReminder[]
+
+  @@map("vehicle_documents")
+}
+
+// NEW: Document Reminders
+model DocumentReminder {
+  id          String   @id @default(cuid())
+  documentId  String
+  document    VehicleDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  type        ReminderType
+  daysBefore  Int
+  sentAt      DateTime?
+  message     String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([documentId])
+  @@index([sentAt])
+  @@map("document_reminders")
+}
+
 enum Role {
   ADMIN
   STAFF
@@ -182,4 +273,77 @@ enum ImageType {
   TYRE
   DOCUMENT
   SERIAL_NUMBER
+}
+
+enum ChallanStatus {
+  PENDING
+  PAID
+  DISMISSED
+  CONTESTED
+  OVERDUE
+  PAYMENT_FAILED
+}
+
+enum PaymentMethod {
+  ONLINE
+  UPI
+  CARD
+  NETBANKING
+  WALLET
+  CASH
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum ChallanSource {
+  PARIVAHAN
+  STATE_RTO
+  MANUAL
+  IMPORT
+}
+
+// ============================================
+// DOCUMENT TYPES (Enhanced)
+// ============================================
+enum DocumentType {
+  RC
+  INSURANCE
+  PUC
+  FITNESS
+  PERMIT
+  ROAD_TAX
+  NOC
+  LICENSE        // NEW
+  TAX            // NEW
+  OTHER
+}
+
+// ============================================
+// DOCUMENT STATUSES (Enhanced)
+// ============================================
+enum DocumentStatus {
+  ACTIVE
+  EXPIRING_SOON
+  EXPIRED
+  UNDER_RENEWAL
+  RENEWAL_PENDING  // NEW
+  PENDING
+  ARCHIVED         // NEW
+}
+
+// ============================================
+// NEW: Reminder Types
+// ============================================
+enum ReminderType {
+  EXPIRY_30_DAYS
+  EXPIRY_15_DAYS
+  EXPIRY_7_DAYS
+  EXPIRY_1_DAY
+  EXPIRED
+  RENEWAL_DUE
 }

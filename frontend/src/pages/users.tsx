@@ -13,7 +13,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { toast } from '@/components/ui/toast'
+import { toast } from '@/components/ui/use-toast'
 import api from '@/lib/api'
 
 // Inline type — no external types.ts needed

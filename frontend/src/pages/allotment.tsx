@@ -27,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { toast } from '@/components/ui/toast'
+import { toast } from '@/components/ui/use-toast'
 import api from '@/lib/api'
 import type { Vehicle, Tyre, Axle } from '@/types'
 

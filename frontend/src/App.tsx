@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { useAuthStore } from './stores/auth'
-import { Toaster } from './components/ui/toast'
+import { Toaster } from './components/ui/use-toast'
 import { Sidebar } from './components/layout/sidebar'
 import { Topbar } from './components/layout/topbar'
 import { LoginPage } from './pages/login'
@@ -12,6 +12,15 @@ import { AllotmentPage } from './pages/allotment'
 import { StepneyPage } from './pages/stepney'
 import { HistoryPage } from './pages/history'
 import { UsersPage } from './pages/users'
+import ChallansPage from './pages/challans'
+import { DocumentsPage } from './pages/documents'
+
+import { GPSDashboard } from './pages/gps/GPSDashboard'
+import { GPSDeviceDetail } from './pages/gps/GPSDeviceDetail'
+import { FuelDashboard } from './pages/fuel/FuelDashboard'
+import { FuelSensorDetail } from './pages/fuel/FuelSensorDetail'
+import { DashcamDashboard } from './pages/dashcam/DashcamDashboard'
+import { DashcamDetail } from './pages/dashcam/DashcamDetail'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -49,6 +58,16 @@ function App() {
           <Route path="/stepney" element={<StepneyPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/users" element={<UsersPage />} />
+          <Route path="/challans" element={<ChallansPage />} />
+          <Route path="/documents" element={<DocumentsPage />} />
+          
+          {/* NEW MODULES - placed INSIDE AppLayout */}
+          <Route path="/gps" element={<GPSDashboard />} />
+          <Route path="/gps/:id" element={<GPSDeviceDetail />} />
+          <Route path="/fuel" element={<FuelDashboard />} />
+          <Route path="/fuel/:id" element={<FuelSensorDetail />} />
+          <Route path="/dashcam" element={<DashcamDashboard />} />
+          <Route path="/dashcam/:id" element={<DashcamDetail />} />
         </Route>
       </Routes>
       <Toaster />
