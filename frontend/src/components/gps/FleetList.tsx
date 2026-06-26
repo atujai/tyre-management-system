@@ -1,79 +1,69 @@
 import React from 'react';
 
-interface Vehicle {
-  id: string;
-  deviceId: string;
-  vehicle: {
-    registrationNumber: string;
-    make?: string;
-    model?: string;
-  };
-  latitude: number;
-  longitude: number;
-  speed?: number;
-  ignition?: boolean;
-  lastPing?: string;
-  status: string;
-  activeTrip?: any;
-}
-
-interface Props {
-  vehicles: Vehicle[];
+interface FleetListProps {
+  vehicles: any[];
   selectedId: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (id: string | number) => void;
 }
 
-export const FleetList: React.FC<Props> = ({ vehicles, selectedId, onSelect }) => {
-  if (vehicles.length === 0) {
-    return (
-      <div className="bg-slate-800 p-4 rounded-xl">
-        <p className="text-slate-400 text-sm text-center">No active vehicles</p>
-      </div>
-    );
-  }
+export const FleetList: React.FC<FleetListProps> = ({ vehicles, selectedId, onSelect }) => {
+  // Remove duplicates by device ID
+  const uniqueVehicles = vehicles.filter((v, i, arr) => 
+    arr.findIndex(t => t.id === v.id) === i
+  );
 
   return (
-    <div className="bg-slate-800 rounded-xl overflow-hidden">
-      <div className="p-4 border-b border-slate-700">
-        <h3 className="text-white font-semibold">Fleet ({vehicles.length})</h3>
-      </div>
-      <div className="max-h-[400px] overflow-y-auto">
-        {vehicles.map((vehicle) => (
-          <button
+    <div className="bg-slate-800 rounded-xl p-4 space-y-3">
+      <h3 className="text-lg font-semibold text-white">Fleet ({uniqueVehicles.length})</h3>
+      
+      <div className="space-y-2 max-h-[400px] overflow-y-auto">
+        {uniqueVehicles.map((vehicle) => (
+          <div
             key={vehicle.id}
-            onClick={() => onSelect(vehicle.id)}
-            className={`w-full text-left p-3 border-b border-slate-700/50 transition-colors ${
-              selectedId === vehicle.id
-                ? 'bg-blue-500/10 border-l-2 border-l-blue-500'
-                : 'hover:bg-slate-700/30 border-l-2 border-l-transparent'
+            onClick={() => vehicle.id && onSelect(vehicle.id)}
+            className={`p-3 rounded-lg cursor-pointer transition ${
+              selectedId === vehicle.id?.toString()
+                ? 'bg-blue-500/20 border border-blue-500/50'
+                : 'bg-slate-700/50 hover:bg-slate-700'
             }`}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex justify-between items-start">
               <div>
-                <p className="text-white text-sm font-medium">
-                  {vehicle.vehicle.registrationNumber}
+                <p className="text-white font-medium">
+                  {vehicle.current_vehicle_reg || 'Unlinked Device'}
                 </p>
-                <p className="text-slate-400 text-xs">
-                  {vehicle.vehicle.make} {vehicle.vehicle.model}
-                </p>
+                {(vehicle.current_vehicle_make || vehicle.current_vehicle_model) && (
+                  <p className="text-slate-400 text-xs">
+                    {vehicle.current_vehicle_make} {vehicle.current_vehicle_model}
+                  </p>
+                )}
               </div>
-              <div className={`w-2 h-2 rounded-full ${
-                vehicle.ignition ? 'bg-green-500' : 'bg-slate-500'
-              }`} />
+              <span className={`px-2 py-0.5 rounded text-xs ${
+                vehicle.status === 'ACTIVE' || vehicle.status === 'ONLINE'
+                  ? 'bg-green-500/20 text-green-400'
+                  : 'bg-red-500/20 text-red-400'
+              }`}>
+                {vehicle.status || 'OFFLINE'}
+              </span>
             </div>
-            <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
-              <span>{vehicle.speed?.toFixed(1) || 0} km/h</span>
-              {vehicle.activeTrip && (
-                <span className="text-blue-400">● Trip</span>
-              )}
+            
+            <div className="mt-2 flex items-center space-x-3 text-xs text-slate-400">
+              <span>Speed: {vehicle.speed ? parseFloat(vehicle.speed).toFixed(1) : '0'} km/h</span>
+              <span>•</span>
+              <span>Ignition: {vehicle.ignition ? 'ON' : 'OFF'}</span>
             </div>
-            {vehicle.lastPing && (
-              <p className="text-slate-500 text-xs mt-1">
-                {new Date(vehicle.lastPing).toLocaleTimeString()}
-              </p>
+            
+            {!vehicle.current_vehicle_reg ? (
+              <p className="text-yellow-500 text-xs mt-1">⚠️ Click to assign vehicle</p>
+            ) : (
+              <p className="text-blue-400 text-xs mt-1">Click to view details</p>
             )}
-          </button>
+          </div>
         ))}
+        
+        {uniqueVehicles.length === 0 && (
+          <p className="text-slate-500 text-sm text-center py-4">No devices found</p>
+        )}
       </div>
     </div>
   );

@@ -1,121 +1,74 @@
-import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from 'react-leaflet';
-import { Icon } from 'leaflet';
+import { MapContainer, TileLayer, Marker, Tooltip, Popup } from 'react-leaflet';
+import { Link } from 'react-router-dom';
 import 'leaflet/dist/leaflet.css';
-import { gpsApi } from '../../api/gpsApi';
-import { useWebSocket } from '../../hooks/useWebSocket';
-import { StatsCard } from '../../components/gps/StatsCard';
-import { FleetList } from '../../components/gps/FleetList';
-import { AlertPanel } from '../../components/gps/AlertPanel';
-import { GPSTrip } from '../../types';
+import L from 'leaflet';
 
-const vehicleIcon = new Icon({
-  iconUrl: '/assets/vehicle-marker.svg',
-  iconSize: [32, 32],
-  iconAnchor: [16, 16],
-});
+// Fix Marker Icons
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+L.Marker.prototype.options.icon = L.icon({ iconUrl: markerIcon, shadowUrl: markerShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
 
-export const GPSDashboard: React.FC = () => {
-  const { data: stats } = useQuery({
-    queryKey: ['gps-stats'],
-    queryFn: gpsApi.getDashboardStats,
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+export const GPSDashboard = () => {
+  const { data: fleetData, isLoading } = useQuery({
+    queryKey: ['gps-fleet'],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/gps/fleet`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const json = await res.json();
+      return json.data || json;
+    },
+    refetchInterval: 10000,
   });
-  const { data: fleet } = useQuery({
-    queryKey: ['fleet-overview'],
-    queryFn: gpsApi.getFleetOverview,
-  });
-  const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null);
-  const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
-  
-  const { lastMessage } = useWebSocket('fleet-updates');
 
-  useEffect(() => {
-    if (lastMessage?.type === 'LOCATION_UPDATE') {
-      // Update fleet position in real-time
-    }
-    if (lastMessage?.type === 'NEW_ALERT') {
-      setActiveAlerts(prev => [lastMessage.data, ...prev].slice(0, 10));
-    }
-  }, [lastMessage]);
+  const fleet = fleetData || [];
+  const vehiclesWithGPS = fleet.filter((v: any) => v.latitude && v.longitude);
+
+  if (isLoading) return <div className="p-6 text-gray-400">Loading fleet data...</div>;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-white">GPS Tracking Dashboard</h1>
+    // The wrapper ensures the dashboard respects your layout's sidebar/topbar
+    <div className="flex flex-col h-[calc(100vh-100px)] p-4 bg-gray-900 rounded-lg shadow-inner">
       
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatsCard
-          title="Active Vehicles"
-          value={stats?.activeDevices || 0}
-          total={stats?.totalDevices || 0}
-          color="green"
-        />
-        <StatsCard
-          title="Active Trips"
-          value={stats?.activeTrips || 0}
-          color="blue"
-        />
-        <StatsCard
-          title="Alerts"
-          value={stats?.unacknowledgedAlerts || 0}
-          color="red"
-        />
-        <StatsCard
-          title="Online %"
-          value={`${stats?.onlinePercentage || 0}%`}
-          color="cyan"
-        />
+      {/* Header Bar */}
+      <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-700">
+        <h1 className="text-xl font-bold text-gray-100">GPS Fleet Dashboard</h1>
+        <Link to="/gps/devices" className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded transition">
+          Manage Devices
+        </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Live Map */}
-        <div className="lg:col-span-2 bg-slate-800 rounded-xl overflow-hidden h-[600px]">
-          <MapContainer
-            center={[20.5937, 78.9629]}
-            zoom={5}
-            className="h-full w-full"
-          >
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; OpenStreetMap'
-            />
-            {fleet?.map((vehicle: any) => (
-              <React.Fragment key={vehicle.id}>
-                <Marker
-                  position={[vehicle.latitude, vehicle.longitude]}
-                  icon={vehicleIcon}
-                  eventHandlers={{
-                    click: () => setSelectedVehicle(vehicle.id),
-                  }}
-                >
-                  <Popup>
-                    <div className="text-slate-900">
-                      <p className="font-bold">{vehicle.vehicle.registrationNumber}</p>
-                      <p>Speed: {vehicle.speed?.toFixed(1)} km/h</p>
-                      <p>Ignition: {vehicle.ignition ? 'ON' : 'OFF'}</p>
-                    </div>
-                  </Popup>
-                </Marker>
-                {vehicle.activeTrip && (
-                  <Polyline
-                    positions={[[vehicle.activeTrip.startLat, vehicle.activeTrip.startLng], [vehicle.latitude, vehicle.longitude]]}
-                    color="#3b82f6"
-                  />
-                )}
-              </React.Fragment>
-            ))}
-          </MapContainer>
+      {/* Main Grid: Assets (Fixed Width) + Map (Fluid) */}
+      <div className="flex flex-1 gap-4 overflow-hidden">
+        
+        {/* Left: Scrollable Asset List */}
+        <div className="w-80 flex-shrink-0 overflow-y-auto space-y-2 pr-2">
+          {fleet.map((v: any) => (
+            <div key={v.gps_device_id || v.id} className="bg-gray-800 p-3 rounded border border-gray-700 hover:border-gray-500">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-sm text-white">{v.vehicle_number || v.gps_name}</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded ${v.traccar_status === 'online' ? 'bg-green-700' : 'bg-gray-600'}`}>
+                  {v.traccar_status || 'offline'}
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1">{v.vehicle_make || 'Tracking Unit'}</p>
+            </div>
+          ))}
         </div>
 
-        {/* Side Panel */}
-        <div className="space-y-4">
-          <FleetList
-            vehicles={fleet || []}
-            selectedId={selectedVehicle}
-            onSelect={setSelectedVehicle}
-          />
-          <AlertPanel alerts={activeAlerts} />
+        {/* Right: Map Area */}
+        <div className="flex-1 bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+          <MapContainer center={[26.44, 80.24]} zoom={11} className="h-full w-full">
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            {vehiclesWithGPS.map((v: any) => (
+              <Marker key={v.gps_device_id} position={[parseFloat(v.latitude), parseFloat(v.longitude)]}>
+                <Tooltip permanent direction="top" className="text-[10px] bg-gray-900 border-none shadow-md">
+                  {v.vehicle_number}
+                </Tooltip>
+              </Marker>
+            ))}
+          </MapContainer>
         </div>
       </div>
     </div>

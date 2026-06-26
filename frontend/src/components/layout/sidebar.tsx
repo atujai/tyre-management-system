@@ -1,3 +1,4 @@
+// src/components/layout/sidebar.tsx
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
@@ -60,16 +61,16 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'flex flex-col h-screen bg-card border-r border-border transition-all duration-300',
+        'flex flex-col h-screen bg-slate-900 border-r border-slate-800 transition-all duration-300',
         collapsed ? 'w-16' : 'w-60'
       )}
     >
-      <div className="flex items-center gap-3 p-4 border-b border-border">
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm shrink-0">
+      <div className="flex items-center gap-3 p-4 border-b border-slate-800">
+        <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-slate-900 font-bold text-sm shrink-0">
           T
         </div>
         {!collapsed && (
-          <span className="font-heading font-bold text-lg text-foreground">
+          <span className="font-bold text-lg text-white">
             TyreManager
           </span>
         )}
@@ -86,8 +87,8 @@ export function Sidebar() {
               className={cn(
                 'flex items-center gap-3 px-4 py-3 mx-2 rounded-lg text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-primary/10 text-primary border border-primary/20'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
               )}
             >
               <Icon className="h-5 w-5 shrink-0" />
@@ -98,9 +99,9 @@ export function Sidebar() {
 
         {adminItems.length > 0 && (
           <>
-            <div className="mx-4 my-3 border-t border-border" />
+            <div className="mx-4 my-3 border-t border-slate-800" />
             {!collapsed && (
-              <p className="px-4 text-xs text-muted-foreground uppercase tracking-wider mb-2">
+              <p className="px-4 text-xs text-slate-500 uppercase tracking-wider mb-2">
                 Admin
               </p>
             )}
@@ -114,8 +115,8 @@ export function Sidebar() {
                   className={cn(
                     'flex items-center gap-3 px-4 py-3 mx-2 rounded-lg text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-primary/10 text-primary border border-primary/20'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                   )}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
@@ -129,7 +130,7 @@ export function Sidebar() {
 
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="p-4 border-t border-border text-muted-foreground hover:text-foreground transition-colors"
+        className="p-4 border-t border-slate-800 text-slate-400 hover:text-white transition-colors"
       >
         {collapsed ? (
           <ChevronRight className="h-5 w-5 mx-auto" />

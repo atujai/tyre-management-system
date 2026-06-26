@@ -56,6 +56,46 @@ router.get('/', authenticate, async (req, res) => {
   res.json(formatted)
 })
 
+// NEW: Get available vehicles for GPS assignment dropdown
+router.get('/available', authenticate, async (req, res) => {
+  try {
+    const allVehicles = await prisma.vehicle.findMany({
+      select: {
+        id: true,
+        reg: true,
+        make: true,
+        model: true,
+        year: true,
+      },
+      orderBy: { reg: 'asc' },
+    })
+
+    // Get vehicles already assigned to a GPS device
+    const assignedDevices = await prisma.gPSDevice.findMany({
+      where: { currentVehicleRegNumber: { not: null } },
+      select: { currentVehicleRegNumber: true },
+    })
+
+    const assignedRegNumbers = assignedDevices.map(d => d.currentVehicleRegNumber)
+
+    // Filter out vehicles that already have a GPS assigned
+    const availableVehicles = allVehicles
+      .filter(v => !assignedRegNumbers.includes(v.reg))
+      .map(v => ({
+        id: v.id,
+        registrationNumber: v.reg,
+        make: v.make?.name || null,
+        model: v.model,
+        year: v.year,
+      }))
+
+    res.json(availableVehicles)
+  } catch (error) {
+    console.error('Available vehicles error:', error)
+    res.status(500).json({ error: 'Failed to fetch available vehicles' })
+  }
+})
+
 // Get single vehicle with full details
 router.get('/:id', authenticate, async (req, res) => {
   const vehicle = await prisma.vehicle.findUnique({

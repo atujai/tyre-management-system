@@ -1,0 +1,128 @@
+// Add these models to your schema.prisma
+
+// ========== LOCATION MODELS ==========
+
+model Location {
+  id            String       @id @default(uuid())
+  name          String
+  type          LocationType
+  address       String?
+  contactPerson String?
+  contactPhone  String?
+  gstNumber     String?
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  tyres         Tyre[]       @relation("TyreLocation")
+  transfersOut  TransferHistory[] @relation("TransferFrom")
+  transfersIn   TransferHistory[] @relation("TransferTo")
+  thresholds    AlertThreshold[]
+  stockAlerts   StockAlert[]
+}
+
+enum LocationType {
+  GODOWN
+  RETREADER
+}
+
+// ========== TYRE MODEL (update existing) ==========
+
+model Tyre {
+  id                String        @id @default(uuid())
+  serialNumber      String        @unique
+  brand             String
+  size              String
+  pattern           String?
+  condition         TyreCondition @default(NEW)
+  hasRim            Boolean       @default(false)
+  rimType           String?
+  treadDepth        Float?
+
+  currentLocationId String?
+  currentLocation   Location?     @relation("TyreLocation", fields: [currentLocationId], references: [id])
+
+  vehicleId         String?
+  vehicle           Vehicle?      @relation(fields: [vehicleId], references: [id])
+  position          String?
+
+  purchaseDate      DateTime?
+  manufacturingDate DateTime?
+  notes             String?
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  transfers         TransferHistory[]
+}
+
+enum TyreCondition {
+  NEW
+  REPAIR
+  RETREAD
+  WORN
+  SCRAP
+  REJECTED
+}
+
+// ========== TRANSFER HISTORY ==========
+
+model TransferHistory {
+  id              String         @id @default(uuid())
+  fromLocationId  String
+  fromLocation    Location       @relation("TransferFrom", fields: [fromLocationId], references: [id])
+  toLocationId    String
+  toLocation      Location       @relation("TransferTo", fields: [toLocationId], references: [id])
+  tyreId          String
+  tyre            Tyre           @relation(fields: [tyreId], references: [id])
+  reason          String
+  customReason    String?
+  notes           String?
+  referenceNumber String?
+  transferredById String
+  transferDate    DateTime       @default(now())
+  createdAt       DateTime       @default(now())
+}
+
+// ========== ALERT THRESHOLDS ==========
+
+model AlertThreshold {
+  id               String   @id @default(uuid())
+  locationId       String
+  location         Location @relation(fields: [locationId], references: [id])
+  size             String
+  brand            String?
+  minNewCount      Int      @default(2)
+  minRetreadCount  Int      @default(1)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+// ========== STOCK ALERTS ==========
+
+model StockAlert {
+  id              String        @id @default(uuid())
+  locationId      String
+  locationName    String
+  size            String
+  brand           String
+  currentStock    Int
+  threshold       Int
+  severity        AlertSeverity
+  status          AlertStatus   @default(ACTIVE)
+  createdAt       DateTime      @default(now())
+  acknowledgedAt  DateTime?
+  acknowledgedBy  String?
+}
+
+enum AlertSeverity {
+  LOW
+  CRITICAL
+}
+
+enum AlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+}

@@ -10,15 +10,19 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    port: 5173,  // ← Change to 5173
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:3000',  // ← Change to 3000 (backend port)
         changeOrigin: true,
       },
       '/uploads': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:3000',  // ← Change to 3000
         changeOrigin: true,
+      },
+      '/ws': {  // ← Add WebSocket proxy
+        target: 'ws://localhost:3000',
+        ws: true,
       },
     },
   },

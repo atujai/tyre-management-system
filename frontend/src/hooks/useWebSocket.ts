@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useAuthStore } from '../stores/auth'; 
+import { useAuthStore } from '../stores/auth';
 
 export const useWebSocket = (channel?: string) => {
   const [lastMessage, setLastMessage] = useState<any>(null);
@@ -8,16 +8,21 @@ export const useWebSocket = (channel?: string) => {
   const { token } = useAuthStore();
 
   useEffect(() => {
-    const wsUrl = `${import.meta.env.VITE_WS_URL}/ws`;
+    const WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:3000';
+    const wsUrl = `${WS_BASE}/ws`;
+
+    if (!WS_BASE || WS_BASE === 'undefined') {
+      console.error('VITE_WS_URL is not defined. WebSocket connection aborted.');
+      return;
+    }
+
     ws.current = new WebSocket(wsUrl);
 
     ws.current.onopen = () => {
       setConnected(true);
-      // Authenticate
       if (token) {
         ws.current?.send(JSON.stringify({ type: 'AUTH', token }));
       }
-      // Subscribe to channel
       if (channel) {
         ws.current?.send(JSON.stringify({ type: 'SUBSCRIBE', channel }));
       }
